@@ -1,0 +1,173 @@
+import numpy as np
+import scipy as cp
+from scipy import integrate
+import matplotlib.pyplot as plt
+from astropy.constants import G, c, M_sun
+from astropy import units as u
+
+class WDBinary:
+    """
+    Simulates the microlensing effects of a white dwarf lens
+    orbiting a luminous star companion.
+    """
+    def __init__(self, mass_wd, r_wd, mass_star, r_star, l_star, ecc, a, d, t, inc=90*u.deg, period=0.0, limb_darkening=[0.2, 0.3]):
+        self.M_l = mass_wd * M_sun
+        self.R_l = r_wd.to(u.m)
+        self.M_s = mass_star * M_sun
+        self.R_star = r_star.to(u.m)
+        self.L_star = l_star * u.L_sun
+
+        self.e = ecc
+        self.a = a.to(u.m)
+        self.inc = inc.to(u.rad)
+        self.d = d.to(u.m)
+        self.t = t
+
+        if (period == 0.0):
+            self._orbital_period()
+        else:
+            self.P = (period * u.day).to(u.yr)
+
+        self.ecc_anomaly(t)
+        self.projected_separation()
+        self.einstein_radius()
+        self.magnification()
+        self.limb_darkening_quadratic(limb_darkening[0], limb_darkening[1])
+
+    def _orbital_period(self):
+        Mlens = self.M_l 
+        Msource = self.M_s
+        a = self.a
+
+        self.P = ((2*np.pi) * np.sqrt(a**3 / (G*(Mlens+Msource)))).to(u.yr)
+
+    def projected_separation(self):
+        a = self.a
+        e = self.e
+        Es = self.Es
+
+        sep = a * (1 - e*np.cos(Es))
+        self.sep = sep
+
+    def mean_anomaly_noM(self, P, t):
+        return ((2 * np.pi * np.mod(t, P)) / P)
+
+    def mean_anomaly2(self, P, t, m0):
+        return np.mod((((2 * np.pi * t) / P) - m0), 2 * np.pi)
+
+    def root(self, M, e):
+        M = np.mod(M, 2*np.pi)
+
+        if (M < 2 * np.pi and M >= np.pi):
+            return M - (e / 2)
+        elif (M < np.pi and M >= 2):
+            return M + ((e * (np.pi - M)) / (1 + e))
+        elif (M < 2 and M >= 0.25):
+            return M + e
+        elif (M < 0.25 and M >= 0):
+            return M + ((e*np.sin(M)) / (1 - np.sin((M+e)) + np.sin(M)))
+        else:
+            print("Invalid M")
+            return NaN
+        
+    def true_anomaly(E, e):
+        # theta-prime function
+        theta_prime_mcmc = lambda E: np.arccos((np.cos(E) - e) / (1 - e * np.cos(E)))
+
+        theta = []
+        for i in range(len(E)):
+            if (E[i] <= np.pi):
+                theta.append(theta_prime_mcmc(E[i]))
+            else:
+                theta.append((2 * np.pi) - theta_prime_mcmc(E[i]))
+
+        return theta
+    
+    def ecc_anomaly(self, ti):
+        e = self.e
+        P = self.P
+        # get E(t) values
+        Es_i = [] # E(ti)
+
+        for i in range(len(ti)):
+            m_ti = self.mean_anomaly_noM(P, ti[i]).value
+            f = lambda x: x - e * np.sin(x) - m_ti
+
+            res_i = cp.optimize.fsolve(func=f, x0=self.root(m_ti,e))
+    
+            Es_i.append(res_i[0])
+
+        self.Es = Es_i * u.rad
+    
+    def einstein_radius(self):
+        l = self.d
+        ls = self.a
+        s = self.d + self.a
+
+        self.r_E = np.sqrt(2 * G * self.M_l * ls / ((c**2) * l * s)) * l
+    
+    def transit_prob(self):
+        r_E = self.r_E
+        r_star = self.R_star
+        sep = self.sep
+
+        return (r_E + r_star) / sep
+
+    def magnification(self):
+        inc = self.inc
+        sep = self.sep
+        r_L = sep * np.cos(inc)
+        rE   = self.r_E
+        r_s  = self.R_star
+
+        print(r_L)
+        print(rE)
+
+        r_in  = r_s - rE
+        r_out = r_s + rE
+
+        A = np.zeros_like(r_L.value, dtype=float)
+
+        ingress = (r_L < r_in)
+        if np.any(ingress):
+            A[ingress] = 1 + 2*(rE/r_s)**2
+
+        inside_mask = (r_L >= r_in) & (r_L < r_out)
+        if np.any(inside_mask):
+            A[inside_mask] = 1 + 2*(rE/r_s)**2 - (r_L[inside_mask]/r_s)**2
+
+
+        egress = (r_L >= r_out)
+        if np.any(egress):
+            A[egress] = 0.0
+
+        self.A = A
+
+    def limb_darkening_quadratic(self, u1, u2):
+        r = self.sep
+        R_star = self.R_star
+        I0 = self.L_star / (4 * np.pi * self.d**2)
+
+        mu = np.sqrt(np.abs(1 - (r/R_star)**2))
+        I = I0 * (1 - u1 * (1 - mu) - u2 * (1 - mu)**2)
+        I[r > R_star] = 0
+        
+        self.I = I
+    
+    def plot_light_curve(self, t):
+        A = self.A
+        I = self.I
+
+        F_obs = I * A
+
+        frac = np.zeros_like(F_obs.value)  # initialize
+        mask = I > 0                       # only divide where I > 0
+        frac[mask] = (F_obs[mask] / I[mask]) - 1.0  
+
+        plt.figure(figsize=(7,4))
+        plt.plot((t/self.P).value, frac)
+        plt.xlabel("Orbits")
+        plt.ylabel("Fractional flux change")
+        plt.title("White Dwarf Microlensing Light Curve")
+        plt.grid(True)
+        plt.show()
