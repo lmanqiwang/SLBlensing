@@ -23,13 +23,19 @@ class WDBinary:
         self.d = d.to(u.m)
         self.t = t
 
+        if self.e == 0:
+            self.circ = True
+
         if (period == 0.0):
             self._orbital_period()
         else:
             self.P = (period * u.day).to(u.yr)
 
-        self.ecc_anomaly(t)
-        self.projected_separation()
+
+        if self.circ != True:
+            self.ecc_anomaly(t)
+            self.projected_separation()
+       
         self.einstein_radius()
         self.magnification()
         self.limb_darkening_quadratic(limb_darkening[0], limb_darkening[1])
@@ -43,11 +49,16 @@ class WDBinary:
 
     def projected_separation(self):
         a = self.a
-        e = self.e
-        Es = self.Es
+        circ = self.circ
 
-        sep = a * (1 - e*np.cos(Es))
-        self.sep = sep
+        if circ == True:
+            self.sep = a
+        else:
+            e = self.e
+            Es = self.Es
+            
+            sep = a * (1 - e*np.cos(Es))
+            self.sep = sep
 
     def mean_anomaly_noM(self, P, t):
         return ((2 * np.pi * np.mod(t, P)) / P)
