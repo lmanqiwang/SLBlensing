@@ -10,12 +10,13 @@ class WDBinary:
     Simulates the microlensing effects of a white dwarf lens
     orbiting a luminous star companion.
     """
-    def __init__(self, mass_wd, r_wd, mass_star, r_star, l_star, ecc, a, d, t, inc=90*u.deg, period=0.0, limb_darkening=[0.2, 0.3]):
+    def __init__(self, mass_wd, r_wd, l_wd, mass_star, r_star, l_star, ecc, a, d, t, inc=90*u.deg, period=0.0, limb_darkening=[0.2, 0.3]):
         self.M_l = mass_wd * M_sun
         self.R_l = r_wd.to(u.m)
         self.M_s = mass_star * M_sun
         self.R_star = r_star.to(u.m)
         self.L_star = l_star * u.L_sun
+        self.L_wd = l_wd * u.L_sun
 
         self.e = ecc
         self.a = a.to(u.m)
@@ -23,7 +24,7 @@ class WDBinary:
         self.d = d.to(u.m)
         self.t = t
 
-        if self.e == 0:
+        if self.e == 0: 
             self.circ = True
 
         if (period == 0.0):
@@ -31,11 +32,10 @@ class WDBinary:
         else:
             self.P = (period * u.day).to(u.yr)
 
-
         if self.circ != True:
             self.ecc_anomaly(t)
-            self.projected_separation()
-       
+            
+        self.projected_separation()
         self.einstein_radius()
         self.magnification()
         self.limb_darkening_quadratic(limb_darkening[0], limb_darkening[1])
@@ -50,14 +50,18 @@ class WDBinary:
     def projected_separation(self):
         a = self.a
         circ = self.circ
+        i = self.inc
+        f = (((2 * np.pi) / self.P) * self.t).to(u.dimensionless_unscaled) * u.rad
+        sqrt = np.sqrt(1 - np.sin(i)**2 * np.sin(f)**2)
 
         if circ == True:
-            self.sep = a
+           self.sep = a * sqrt
+            
         else:
             e = self.e
             Es = self.Es
             
-            sep = a * (1 - e*np.cos(Es))
+            sep = a * (1 - e*np.cos(Es)) * sqrt
             self.sep = sep
 
     def mean_anomaly_noM(self, P, t):
@@ -131,9 +135,6 @@ class WDBinary:
         rE   = self.r_E
         r_s  = self.R_star
 
-        print(r_L)
-        print(rE)
-
         r_in  = r_s - rE
         r_out = r_s + rE
 
@@ -182,3 +183,26 @@ class WDBinary:
         plt.title("White Dwarf Microlensing Light Curve")
         plt.grid(True)
         plt.show()
+
+    # def plot_light_curve(self, t):
+    #     A = self.A
+
+    #     F_star = self.L_star / (4 * np.pi * self.d**2)
+    #     F_wd   = self.L_wd   / (4 * np.pi * self.d**2)
+
+    #     F_star_obs = F_star * A
+    #     F_wd_obs = F_wd    # no significant lensing by star
+
+    #     # total observed and baseline flux
+    #     F_obs  = F_star_obs + F_wd_obs
+    #     F_base = F_star + F_wd
+
+    #     frac = (F_obs / F_base - 1).value
+
+    #     plt.figure(figsize=(7,4))
+    #     plt.plot((t/self.P).value, frac)
+    #     plt.xlabel("Orbits")
+    #     plt.ylabel("Fractional flux change")
+    #     plt.title("White Dwarf Self-Lensing Binary")
+    #     plt.grid(True)
+    #     plt.show()
