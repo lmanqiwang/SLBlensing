@@ -37,7 +37,7 @@ class WDBinary:
             
         self.projected_separation()
         self.einstein_radius()
-        self.magnification()
+        self.magnification2()
         self.limb_darkening_quadratic(limb_darkening[0], limb_darkening[1])
 
     def _orbital_period(self):
@@ -52,7 +52,7 @@ class WDBinary:
         circ = self.circ
         i = self.inc
         f = (((2 * np.pi) / self.P) * self.t).to(u.dimensionless_unscaled) * u.rad
-        sqrt = np.sqrt(1 - np.sin(i)**2 * np.sin(f)**2)
+        sqrt = np.sqrt(np.cos(f)**2 + (np.sin(f) * np.cos(i))**2)
 
         if circ == True:
            self.sep = a * sqrt
@@ -120,18 +120,10 @@ class WDBinary:
         s = self.d + self.a
 
         self.r_E = np.sqrt(2 * G * self.M_l * ls / ((c**2) * l * s)) * l
-    
-    def transit_prob(self):
-        r_E = self.r_E
-        r_star = self.R_star
-        sep = self.sep
 
-        return (r_E + r_star) / sep
-
-    def magnification(self):
+    def magnification_perfect_align(self):
         inc = self.inc
-        sep = self.sep
-        r_L = sep * np.cos(inc)
+        r_L = self.sep
         rE   = self.r_E
         r_s  = self.R_star
 
@@ -148,10 +140,22 @@ class WDBinary:
         if np.any(inside_mask):
             A[inside_mask] = 1 + 2*(rE/r_s)**2 - (r_L[inside_mask]/r_s)**2
 
-
         egress = (r_L >= r_out)
         if np.any(egress):
             A[egress] = 0.0
+
+        self.A = A
+
+    def magnification2(self):
+        r_L = self.sep
+        rE   = self.r_E
+        r_s  = self.R_star
+
+        ro = 0.5 * ((r_s**2 + 4 * rE**2)**(1/2) + r_s)
+
+        r_out = np.ones(r_L.size) * (ro)
+
+        A = (r_out**2 - r_L**2) / r_s**2
 
         self.A = A
 
@@ -162,27 +166,39 @@ class WDBinary:
 
         mu = np.sqrt(np.abs(1 - (r/R_star)**2))
         I = I0 * (1 - u1 * (1 - mu) - u2 * (1 - mu)**2)
-        I[r > R_star] = 0
+        # I[r > R_star] = 0
         
         self.I = I
-    
+
     def plot_light_curve(self, t):
         A = self.A
         I = self.I
 
-        F_obs = I * A
-
-        frac = np.zeros_like(F_obs.value)  # initialize
-        mask = I > 0                       # only divide where I > 0
-        frac[mask] = (F_obs[mask] / I[mask]) - 1.0  
-
         plt.figure(figsize=(7,4))
-        plt.plot((t/self.P).value, frac)
+        plt.plot((t/self.P).value, I*A)
         plt.xlabel("Orbits")
         plt.ylabel("Fractional flux change")
-        plt.title("White Dwarf Microlensing Light Curve")
+        plt.title("White Dwarf Self-lensing Light Curve")
         plt.grid(True)
         plt.show()
+    
+    # def plot_light_curve(self, t):
+    #     A = self.A
+    #     I = self.I
+
+    #     F_obs = I * A
+
+    #     frac = np.zeros_like(F_obs.value)  # initialize
+    #     mask = I > 0                       # only divide where I > 0
+    #     frac[mask] = (F_obs[mask] / I[mask]) - 1.0  
+
+    #     plt.figure(figsize=(7,4))
+    #     plt.plot((t/self.P).value, frac)
+    #     plt.xlabel("Orbits")
+    #     plt.ylabel("Fractional flux change")
+    #     plt.title("White Dwarf Microlensing Light Curve")
+    #     plt.grid(True)
+    #     plt.show()
 
     # def plot_light_curve(self, t):
     #     A = self.A
