@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
 class SLBlensing:
-    def __init__(self, mass_lens, r_lens, l_lens, T_eff_lens, mass_star, r_star, l_wd, T_eff_star, ecc, a, d, omega=np.pi, inc=90*u.deg, period=0.0*u.day, cycles=1.0, limb_darkening_l=[0.0, 0.0], limb_darkening_star=[0.0, 0.0], gravity_darkening = 0.0, spin=0, offset=False, freq=None, N=1000):
+    def __init__(self, mass_lens, r_lens, l_lens, T_eff_lens, mass_star, r_star, l_star, T_eff_star, ecc, a, d, omega=np.pi, inc=90*u.deg, period=0.0*u.day, cycles=1.0, limb_darkening_l=[0.0, 0.0], limb_darkening_star=[0.0, 0.0], gravity_darkening = 0.0, spin=0, offset=False, freq=None, N=1000):
         self.M_l = mass_lens * M_sun
         self.R_l = r_lens.to(u.m)
         self.M_s = mass_star * M_sun
         self.R_star = r_star.to(u.m)
-        self.L_star = l_wd * u.Lsun
+        self.L_star = l_star * u.Lsun
         self.L_l = l_lens * u.Lsun
         self.N = N
         self.nu = freq
