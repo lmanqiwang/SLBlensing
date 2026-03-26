@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
 class SLBlensing:
-    def __init__(self, mass_lens, r_lens, l_lens, T_eff_lens, mass_star, r_star, l_star, T_eff_star, ecc, a, d, omega=np.pi, inc=90*u.deg, period=0.0*u.day, cycles=1.0, limb_darkening_l=[0.0, 0.0], limb_darkening_star=[0.0, 0.0], gravity_darkening = 0.0, spin=0, offset=False, freq=None, N=1000):
+    def __init__(self, mass_lens, r_lens, l_lens, T_eff_lens, mass_star, r_star, l_star, T_eff_star, ecc, a, d, omega=np.pi, inc=90*u.deg, period=0.0*u.day, cycles=1.0, limb_darkening_l=[0.0, 0.0], limb_darkening_star=[0.0, 0.0], gravity_darkening = 0.0, offset=False, freq=None, N=1000):
         self.M_l = mass_lens * M_sun
         self.R_l = r_lens.to(u.m)
         self.M_s = mass_star * M_sun
@@ -22,7 +22,6 @@ class SLBlensing:
 
         self.A_star = np.pi * self.R_star**2
         self.A_l = np.pi * self.R_l**2
-        self.spin = spin
 
         self.e = ecc
         self.a = a.to(u.m)
@@ -73,11 +72,14 @@ class SLBlensing:
             phi = self.f + np.ones(self.f.size) * self.omega
 
             # bandpass photometry flux, from blackbody approx
-            self.F_nu_lens = (((np.pi * (self.R_l / self.d)**2 * 2 * h * self.nu**3) / c**2) * (1 / (np.exp(((h * self.nu)/ (k_B * self.T_eff_lens)).to(u.dimensionless_unscaled).value) - 1))).to(u.W / u.m**2 / u.Hz)
+            if self.T_eff_lens.value < 1.0: 
+                self.F_nu_lens = 0.0 * (u.W / u.m**2 / u.Hz) # BH case
+            else:
+                self.F_nu_lens = (((np.pi * (self.R_l / self.d)**2 * 2 * h * self.nu**3) / c**2) * (1 / (np.exp(((h * self.nu)/(k_B * self.T_eff_lens)).to(u.dimensionless_unscaled).value) - 1))).to(u.W / u.m**2 / u.Hz)
             self.F_nu_star = (((np.pi * (self.R_star / self.d)**2 * 2 * h * self.nu**3) / c**2) * (1 / (np.exp(((h * self.nu)/ (k_B * self.T_eff_star)).to(u.dimensionless_unscaled).value) - 1))).to(u.W / u.m**2 / u.Hz)
             
             # ellipoisdial variation, we assume compact object is not deformed by MS star
-            self.ellip_var = (((3/20) * (((15 + u1) * (1 + gravity_darkening)) / (3 - u1)) * (self.M_l / self.M_s) * (self.R_star / self.r)**3 * np.cos(self.inc)**2) * np.cos(2 * phi)) * self.F_nu_star
+            self.ellip_var = (((3/20) * (((15 + u1) * (1 + gravity_darkening)) / (3 - u1)) * (self.M_l / self.M_s) * (self.R_star / self.r)**3 * np.sin(self.inc)**2) * np.cos(2 * phi)) * self.F_nu_star
             
         self.cartesian_coords()
         self.projected_separation()
@@ -275,25 +277,26 @@ class SLBlensing:
             a = self.a
 
             self.geo_flux -= self.ellip_var
-            self.base_flux -= self.ellip_var
 
-            x_star = ((h * self.nu) / (self.T_eff_star * k_B)).to(u.dimensionless_unscaled).value
-            x_lens = ((h * self.nu) / (self.T_eff_lens * k_B)).to(u.dimensionless_unscaled).value
-
+            x_star = ((h * self.nu) / (Tstar * k_B)).to(u.dimensionless_unscaled).value
             anu_star = 3 - (np.exp(x_star) / (np.exp(x_star) - 1)) * x_star
-            anu_lens = 3 - (np.exp(x_lens) / (np.exp(x_lens) - 1)) * x_lens
+
+            if Tlens.value == 0:
+                anu_lens = 0.0
+                x_lens = 0.0
+            else:
+                x_lens = ((h * self.nu) / (Tlens * k_B)).to(u.dimensionless_unscaled).value
+                anu_lens = 3 - (np.exp(x_lens) / (np.exp(x_lens) - 1)) * x_lens
+
+                # irradiation to leading order
+                lumin_eff = (Tlens / Tstar)**4 * ((np.exp(x_lens) - 1) / (np.exp(x_star) - 1))
+                self.geo_flux += (2/3) * (Rlens / a)**2 * (1/lumin_eff) * F_star
+                self.geo_flux -= (2/3) * (Rstar / a)**2 * (1/lumin_eff) * F_lens
 
             # doppler beaming
             self.geo_flux += (3 - anu_star) * (self.v_star_los / c).to(u.dimensionless_unscaled) * F_star
             self.geo_flux -= self.ellip_var
             self.geo_flux -= (3 - anu_lens) * (self.v_lens_los / c).to(u.dimensionless_unscaled) * F_lens
-
-            # irradiation to leading order
-            lumin_eff = (Tlens / Tstar)**4 * ((np.exp(x_lens) - 1) / (np.exp(x_star) - 1))
-
-            self.geo_flux += (2/3) * (Rlens / a)**2 * (1/lumin_eff) * F_star
-            self.geo_flux -= (2/3) * (Rstar / a)**2 * (1/lumin_eff) * F_lens
-
 
     def geometric_limb_darkening(self, u1, u2, u3, u4):
         Z = self.Z
