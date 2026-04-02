@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
 class SLBlensing:
-    def __init__(self, mass_lens, r_lens, l_lens, T_eff_lens, mass_star, r_star, l_star, T_eff_star, ecc, a, d, omega=np.pi, inc=90*u.deg, period=0.0*u.day, cycles=1.0, limb_darkening_l=[0.0, 0.0], limb_darkening_star=[0.0, 0.0], gravity_darkening = 0.0, offset=False, freq=None, N=1000):
+    def __init__(self, mass_lens, r_lens, l_lens, T_eff_lens, mass_star, r_star, l_star, T_eff_star, ecc, a, d, omega=0 * u.deg, inc=90*u.deg, period=0.0*u.day, cycles=1.0, limb_darkening_l=[0.0, 0.0], limb_darkening_star=[0.0, 0.0], gravity_darkening = 0.0, offset=False, freq=None, N=1000):
         self.M_l = mass_lens * M_sun
-        self.R_l = r_lens.to(u.m)
+        self.R_l = (r_lens * u.Rsun).to(u.m)
         self.M_s = mass_star * M_sun
-        self.R_star = r_star.to(u.m)
+        self.R_star = (r_star * u.Rsun).to(u.m)
         self.L_star = l_star * u.Lsun
         self.L_l = l_lens * u.Lsun
         self.N = N
@@ -167,18 +167,18 @@ class SLBlensing:
             factor_oc = np.sqrt(1-e**2) / (1-e*np.sin(omega))
 
         # PRIMARY ECLIPSE
-        self.tra_tot = (P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1+k)**2 - b_tra**2)) / np.sin(i)) * factor_tra
-        self.tra_full = (P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1-k)**2 - b_tra**2)) / np.sin(i)) * factor_tra
-        self.tra_t0 = ((R_star * P) / (np.pi * a)) * factor_tra 
+        self.tra_tot = ((P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1+k)**2 - b_tra**2)) / np.sin(i)) * factor_tra) / u.rad
+        self.tra_full = ((P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1-k)**2 - b_tra**2)) / np.sin(i)) * factor_tra) / u.rad
+        self.tra_t0 = (((R_star * P) / (np.pi * a)) * factor_tra) / u.rad
 
         tau = self.tra_tot - self.tra_full
         self.tra_ingress = tau * (1 + ing_eg_ratio * (1-b_tra)**(3/2)) / 2
         self.tra_egress = tau * (1 - ing_eg_ratio * (1-b_tra)**(3/2)) / 2
 
         # SECONDARY ECLIPSE
-        self.oc_tot = (P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1+k)**2 - b_oc**2)) / np.sin(i)) * factor_oc
-        self.oc_full = (P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1-k)**2 - b_oc**2)) / np.sin(i)) * factor_oc
-        self.oc_t0 = ((R_star * P) / (np.pi * a)) * factor_oc 
+        self.oc_tot = ((P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1+k)**2 - b_oc**2)) / np.sin(i)) * factor_oc) / u.rad
+        self.oc_full = ((P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1-k)**2 - b_oc**2)) / np.sin(i)) * factor_oc) / u.rad
+        self.oc_t0 = (((R_star * P) / (np.pi * a)) * factor_oc) / u.rad
 
         tau = self.oc_tot - self.oc_full
         self.oc_ingress = tau * (1 + ing_eg_ratio * (1-b_oc)**(3/2)) / 2
@@ -276,8 +276,6 @@ class SLBlensing:
             Rstar = self.R_star
             a = self.a
 
-            self.geo_flux -= self.ellip_var
-
             x_star = ((h * self.nu) / (Tstar * k_B)).to(u.dimensionless_unscaled).value
             anu_star = 3 - (np.exp(x_star) / (np.exp(x_star) - 1)) * x_star
 
@@ -295,8 +293,10 @@ class SLBlensing:
 
             # doppler beaming
             self.geo_flux += (3 - anu_star) * (self.v_star_los / c).to(u.dimensionless_unscaled) * F_star
-            self.geo_flux -= self.ellip_var
             self.geo_flux -= (3 - anu_lens) * (self.v_lens_los / c).to(u.dimensionless_unscaled) * F_lens
+
+            # elliposidal variation
+            self.geo_flux -= self.ellip_var
 
     def geometric_limb_darkening(self, u1, u2, u3, u4):
         Z = self.Z
@@ -356,36 +356,76 @@ class SLBlensing:
 
         self.Es = E * u.rad
 
-    def light_curve_plotter(self, name):
-        fig = plt.figure(figsize=(20, 8)) 
+    def light_curve_plotter(self, name, n):
+        fig = plt.figure(figsize=(24, 10)) 
         gs = gridspec.GridSpec(1, 2)
         ax0 = fig.add_subplot(gs[0])
         ax1 = fig.add_subplot(gs[1])
 
         time = (self.t).to(u.day).value
         frac = self.geo_flux / self.base_flux
+        period = self.P.to(u.day).value
 
-        tra_mid = time[np.where(frac == np.max(frac))]
-        occ_mid = time[np.where(frac == np.min(frac))]
+        first_cycle = time <= period
+        wtime  = time[first_cycle]
+        wfrac  = frac[first_cycle]      
+
+        transit_mask = self.Z[first_cycle].value > 0
+        occult_mask  = self.Z[first_cycle].value < 0
+
+        tra_mid = np.median(wtime[np.where(wfrac == np.max(wfrac[transit_mask]))])
+        occ_mid = np.median(wtime[np.where(wfrac == np.min(wfrac[occult_mask]))])
 
         dt = np.abs(time[1] - time[0])
-        change = 0.007 * self.N * dt
+        change = n * self.N * dt
 
-        plt.suptitle(f"{name} Light Curve Flares")
+        plt.suptitle(name)
 
         ax0.plot(time, frac)
         ax0.set_xlabel("Time (days)")
-        ax0.set_ylabel("Relative Flux")
-        ax0.set_title("Primary")
+        ax0.set_ylabel("Normalized Flux")
+        ax0.set_title("Lens Transit")
         ax0.set_xlim(tra_mid - change, tra_mid + change)
-        ax0.set_ylim(0.9985, 1.0015)
+        ax0.set_ylim(1 - 0.2 * np.max(wfrac - 1))
 
         ax1.plot(time, frac)
         ax1.set_xlabel("Time (days)")
-        ax1.set_ylabel("Relative Flux")
-        ax1.set_title("Secondary")
+        ax1.set_title("Lens Occultation")
         ax1.set_xlim(occ_mid - change, occ_mid + change)
-        ax1.set_ylim(0.9985, 1.0015)
+        ax1.set_ylim(np.min(wfrac[occult_mask]) - (1 - np.min(wfrac[occult_mask])) * (0.2), 1 + 0.2 * (1 - np.min(wfrac[occult_mask])))
+
+        ax0.ticklabel_format(style='plain', axis='y', useOffset=False)
+        ax1.ticklabel_format(style='plain', axis='y', useOffset=False)
+        plt.tight_layout()
+        plt.show()
+
+    def transit_plotter(self, name, n):
+        plt.figure(figsize=(15, 8)) 
+
+        time = (self.t).to(u.day).value
+        frac = self.geo_flux / self.base_flux
+        period = self.P.to(u.day).value
+
+        first_cycle = time <= period
+        wtime  = time[first_cycle]
+        wfrac  = frac[first_cycle]      
+
+        transit_mask = self.Z[first_cycle].value > 0
+
+        tra_mid = np.median(wtime[np.where(wfrac == np.max(wfrac[transit_mask]))])
+
+        dt = np.abs(time[1] - time[0])
+        change = n * self.N * dt
+
+        plt.suptitle(name)
+
+        plt.plot(time, frac)
+        plt.xlabel("Time (days)")
+        plt.ylabel("Normalized Flux")
+        plt.title("Lens Transit")
+        plt.xlim(tra_mid - change, tra_mid + change)
+        plt.ylim(1 - 0.2 * np.max(wfrac - 1))
+        plt.ticklabel_format(style='plain', axis='y', useOffset=False)
 
         plt.tight_layout()
         plt.show()
