@@ -285,11 +285,16 @@ class SLBlensing:
             else:
                 x_lens = ((h * self.nu) / (Tlens * k_B)).to(u.dimensionless_unscaled).value
                 anu_lens = 3 - (np.exp(x_lens) / (np.exp(x_lens) - 1)) * x_lens
+                cos_theta = np.sin(self.inc) * np.sin(self.f + self.omega)
+
+                # magntidue diff
+                del_m = -2.5 * np.log10((F_lens / F_star).decompose().value)
+                exp = np.power(10, -0.4 * del_m)
 
                 # irradiation to leading order
                 lumin_eff = (Tlens / Tstar)**4 * ((np.exp(x_lens) - 1) / (np.exp(x_star) - 1))
-                self.geo_flux += (2/3) * (Rlens / a)**2 * (1/lumin_eff) * F_star
-                self.geo_flux -= (2/3) * (Rstar / a)**2 * (1/lumin_eff) * F_lens
+                self.geo_flux += (5/6) * (np.log10(np.e) / np.pi) * (Rstar / a)**2 * (1/lumin_eff) * (1 / (1 + exp)) * F_star * cos_theta
+                self.geo_flux += (5/6) * (np.log10(np.e) / np.pi) * (Rlens / a)**2 * (lumin_eff) * (exp / (1 + exp)) * F_lens * cos_theta
 
             # doppler beaming
             self.geo_flux += (3 - anu_star) * (self.v_star_los / c).to(u.dimensionless_unscaled) * F_star
