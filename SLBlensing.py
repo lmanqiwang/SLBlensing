@@ -172,8 +172,8 @@ class SLBlensing:
         self.tra_t0 = (((R_star * P) / (np.pi * a)) * factor_tra) / u.rad
 
         tau = self.tra_tot - self.tra_full
-        self.tra_ingress = tau * (1 + ing_eg_ratio * (1-b_tra)**(3/2)) / 2
-        self.tra_egress = tau * (1 - ing_eg_ratio * (1-b_tra)**(3/2)) / 2
+        self.tra_ingress = tau * (1 + ing_eg_ratio * (1-b_tra**2)**(3/2)) / 2
+        self.tra_egress = tau * (1 - ing_eg_ratio * (1-b_tra**2)**(3/2)) / 2
 
         # SECONDARY ECLIPSE
         self.oc_tot = ((P / np.pi) * np.arcsin(((R_star) / a) * (np.sqrt((1+k)**2 - b_oc**2)) / np.sin(i)) * factor_oc) / u.rad
@@ -181,8 +181,8 @@ class SLBlensing:
         self.oc_t0 = (((R_star * P) / (np.pi * a)) * factor_oc) / u.rad
 
         tau = self.oc_tot - self.oc_full
-        self.oc_ingress = tau * (1 + ing_eg_ratio * (1-b_oc)**(3/2)) / 2
-        self.oc_egress = tau * (1 - ing_eg_ratio * (1-b_oc)**(3/2)) / 2
+        self.oc_ingress = tau * (1 + ing_eg_ratio * (1-b_oc**2)**(3/2)) / 2
+        self.oc_egress = tau * (1 - ing_eg_ratio * (1-b_oc**2)**(3/2)) / 2
 
     def overlapping_area(self):
         d = self.r_sky.to(u.m)
