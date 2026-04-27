@@ -86,5 +86,5 @@ The following instance variables are computed during initialization (unless othe
 | `geometric_limb_darkening(u1, u2, u3, u4)` | Calculates limb-darkening effects on transit and occultation curves |
 | `magnification()` | Computes the lensing magnification factor |
 | `geometric_flux()` | Computes the total light curve with geometric transit/occultation dips, lensing magnification, Doppler boosting, ellipsoidal variation, and irradiation |
-| `light_curve_plotter(name, n)` | Plots lensing flares and occultation dips. `name` sets the plot title; `n` sets the fractional period padding on the time axis |
-| `transit_plotter(name, n)` | Plots only the lensing flare of the binary |
+| `light_curve_plotter(name, n)` | Plots lensing bumps and occultation dips. `name` sets the plot title; `n` sets the fractional period padding on the time axis |
+| `transit_plotter(name, n)` | Plots only the lensing bump of the binary |
