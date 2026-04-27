@@ -2,7 +2,7 @@
 
 SLBlensing is a publicly available Python class that simulates light curve profiles of SLBs to lowest order, implementing geometric lensing and occultation, limb and gravity darkening, Doppler boosting, ellipsoidal variation, and irradiation. 
 
-This code is validated against previously calculated light curve profiles from observed systems KOI-3278 and three WD SLBs discovered by Kepler to the order of 10^{−4} in relative flux.
+This code is validated against previously calculated light curve profiles from observed systems KOI-3278 and three WD SLBs discovered by Kepler to the order of 10<sup>−4</sup> in relative flux.
 
 ## Parameter Setup
 
